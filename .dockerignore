@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.swp
+*.swo
+*~
+
+# 构建产物
+target/
+dist/
+node_modules/
+*.jar
+*.war
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# 文档
+*.md
+!README.md
+
+# 环境变量文件（敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 上传文件（不包含在镜像中，使用volume挂载）
+uploads/
+
+# Docker相关
+docker-compose.yml
+Dockerfile
+.dockerignore
+

@@ -1,0 +1,95 @@
+name: taobao-project
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: taobao-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: taobaodemo
+      MYSQL_USER: taobao
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/src/main/resources/database_init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --character-set-client-handshake=FALSE
+      - --init-connect=SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci
+    networks:
+      - taobao-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taobao-backend
+    restart: always
+    environment:
+      # 数据库配置（通过环境变量覆盖application-prod.yml）
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/taobaodemo?characterEncoding=UTF-8&useUnicode=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&connectionCollation=utf8mb4_unicode_ci&useOldAliasMetadataBehavior=true&autoReconnect=true&failOverReadOnly=false&maxReconnects=10
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Shanghai
+      # 服务器公网IP（用于CORS）- 通过环境变量配置
+      SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP:-localhost}
+      # JVM参数（增加内存和GC优化）
+      JAVA_OPTS: -Xmx512m -Xms256m -Dfile.encoding=UTF-8
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    # 以root用户运行（解决写入权限问题）
+    user: "0:0"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - taobao-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/product/list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: taobao-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - taobao-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  taobao-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+
